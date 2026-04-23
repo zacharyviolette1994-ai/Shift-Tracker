@@ -371,11 +371,27 @@ const todayKey = () => {
 };
 const fmtTime = (sec) => `${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`;
 
-function computeTargets(bodyWeight) {
+// Hypertrophy macro presets. Multipliers are per lb of body weight.
+// Calorie values bracket maintenance (≈14 kcal/lb for trained lifters) in
+// ~250–360 kcal steps — roughly 0.5–1 lb/week change on each side.
+// Protein and fat are research-backed minimums for muscle retention/gain.
+const GOAL_PRESETS = {
+  cut:      { label: 'CUT',        blurb: 'Fat loss · ~0.5–1 lb/wk down',  kcalMul: 12, proMul: 1.1, fatMul: 0.30 },
+  maintain: { label: 'MAINTAIN',   blurb: 'Hold weight, recomp',           kcalMul: 14, proMul: 1.0, fatMul: 0.35 },
+  lean:     { label: 'LEAN BULK',  blurb: 'Slow gain · ~0.5 lb/wk up',     kcalMul: 16, proMul: 1.0, fatMul: 0.35 },
+  bulk:     { label: 'BULK',       blurb: 'Faster gain · ~0.75–1 lb/wk',   kcalMul: 17, proMul: 1.0, fatMul: 0.40 },
+};
+
+function normalizeGoal(g) {
+  return GOAL_PRESETS[g] ? g : 'lean';
+}
+
+function computeTargets(bodyWeight, goal = 'lean') {
   const bw = Number(bodyWeight) || 180;
-  const kcal = Math.round(bw * 16);
-  const protein = Math.round(bw * 1);
-  const fat = Math.round(bw * 0.35);
+  const preset = GOAL_PRESETS[normalizeGoal(goal)];
+  const kcal = Math.round(bw * preset.kcalMul);
+  const protein = Math.round(bw * preset.proMul);
+  const fat = Math.round(bw * preset.fatMul);
   const carbs = Math.max(0, Math.round((kcal - protein*4 - fat*9) / 4));
   return { kcal, protein, carbs, fat };
 }
@@ -398,12 +414,13 @@ export default function ShiftTracker() {
     (async () => {
       const cfg = await store.get('config', {
         bodyWeight: 180,
-        goal: 'hypertrophy',
+        goal: 'lean',
         restTimer: 90,
         dayIndex: 0,
-        targets: computeTargets(180),
+        targets: computeTargets(180, 'lean'),
         createdAt: new Date().toISOString(),
       });
+      cfg.goal = normalizeGoal(cfg.goal);
       setConfig(cfg);
 
       setExerciseState(await store.get('exercises_state', {}));
@@ -1927,16 +1944,24 @@ function Modal({ children, onClose }) {
 
 function SettingsModal({ config, onSave, onClose }) {
   const [bw, setBw] = useState(config.bodyWeight);
+  const [goal, setGoal] = useState(normalizeGoal(config.goal));
   const [kcal, setKcal] = useState(config.targets.kcal);
   const [p, setP] = useState(config.targets.protein);
   const [c, setC] = useState(config.targets.carbs);
   const [f, setF] = useState(config.targets.fat);
   const [rest, setRest] = useState(config.restTimer);
 
-  const autoFromBw = () => {
-    const t = computeTargets(bw);
+  const applyPreset = (nextBw, nextGoal) => {
+    const t = computeTargets(nextBw, nextGoal);
     setKcal(t.kcal); setP(t.protein); setC(t.carbs); setF(t.fat);
   };
+
+  const pickGoal = (g) => {
+    setGoal(g);
+    applyPreset(bw, g);
+  };
+
+  const autoFromBw = () => applyPreset(bw, goal);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-sm">
@@ -1947,6 +1972,28 @@ function SettingsModal({ config, onSave, onClose }) {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-5">
+          <section>
+            <div className="font-mono text-[10px] text-neutral-400 uppercase tracking-widest mb-2">Goal</div>
+            <div className="bg-neutral-900 border border-neutral-700 rounded-xl p-3">
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                {Object.entries(GOAL_PRESETS).map(([k, preset]) => {
+                  const active = goal === k;
+                  return (
+                    <button key={k} onClick={() => pickGoal(k)}
+                      className={`py-2.5 rounded-lg font-display tracking-wider text-sm transition-all ${
+                        active ? 'bg-amber-400 text-black' : 'bg-neutral-800 text-neutral-300 border border-neutral-700'
+                      }`}>
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="font-mono text-[10px] text-neutral-400 text-center px-1 leading-relaxed">
+                {GOAL_PRESETS[goal].blurb}
+              </div>
+            </div>
+          </section>
+
           <section>
             <div className="font-mono text-[10px] text-neutral-400 uppercase tracking-widest mb-2">Body</div>
             <div className="bg-neutral-900 border border-neutral-700 rounded-xl p-4">
@@ -1965,7 +2012,7 @@ function SettingsModal({ config, onSave, onClose }) {
           </section>
 
           <section>
-            <div className="font-mono text-[10px] text-neutral-400 uppercase tracking-widest mb-2">Daily Targets</div>
+            <div className="font-mono text-[10px] text-neutral-400 uppercase tracking-widest mb-2">Daily Targets <span className="text-neutral-600 normal-case tracking-normal">· tweak anything</span></div>
             <div className="bg-neutral-900 border border-neutral-700 rounded-xl p-4 space-y-3">
               {[
                 ['Calories', kcal, setKcal, 'kcal'],
@@ -2019,6 +2066,7 @@ function SettingsModal({ config, onSave, onClose }) {
             onClick={() => onSave({
               ...config,
               bodyWeight: bw,
+              goal,
               restTimer: rest,
               targets: { kcal, protein: p, carbs: c, fat: f },
             })}
