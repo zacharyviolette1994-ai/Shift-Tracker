@@ -1815,6 +1815,11 @@ function MealsView({ templates, saveTemplates, grocery, saveGrocery, customFoods
     setExpanded(null);
   };
 
+  const updateTemplateName = async (tplId, name) => {
+    const next = templates.map(t => (t.id === tplId ? { ...t, name } : t));
+    await saveTemplates(next);
+  };
+
   const updateFoodGrams = async (tplId, foodIdx, grams) => {
     const next = templates.map(t => {
       if (t.id !== tplId) return t;
@@ -1931,6 +1936,16 @@ function MealsView({ templates, saveTemplates, grocery, saveGrocery, customFoods
 
                   {isExpanded && (
                     <div className="border-t border-neutral-800 bg-black/30 p-3 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-[10px] text-neutral-400 uppercase tracking-widest w-12">Name</span>
+                        <input
+                          type="text"
+                          value={tpl.name}
+                          onChange={e => updateTemplateName(tpl.id, e.target.value)}
+                          className="flex-1 bg-neutral-900 border border-neutral-700 rounded px-2 py-1 font-display tracking-wider text-sm text-white outline-none focus:border-amber-400"
+                          placeholder="NAME"
+                        />
+                      </div>
                       {tpl.foods.map((food, i) => (
                         <div key={i} className="flex items-center gap-2 text-sm">
                           <div className="flex-1 min-w-0">
@@ -2334,8 +2349,15 @@ function LiftChart({ exerciseId, data, current }) {
 // ============================================================
 function Modal({ children, onClose }) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center" onClick={onClose}>
-      <div className="bg-neutral-900 border border-neutral-700 rounded-t-2xl sm:rounded-2xl w-full max-w-md p-5 slide-up" onClick={e => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center"
+      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4.5rem)' }}
+      onClick={onClose}
+    >
+      <div
+        className="bg-neutral-900 border border-neutral-700 rounded-t-2xl sm:rounded-2xl w-full max-w-md p-5 slide-up sm:mb-[4.5rem]"
+        onClick={e => e.stopPropagation()}
+      >
         {children}
       </div>
     </div>
