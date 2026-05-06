@@ -1,5 +1,17 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Dumbbell, Apple, TrendingUp, Plus, Minus, Check, X, Search, ScanLine, Edit3, Timer, ChevronLeft, ChevronRight, Settings, Trash2, RotateCcw, ArrowLeft, Info, Camera, Download, Utensils, ShoppingCart, Square, CheckSquare } from 'lucide-react';
+import {
+  PROGRAMS,
+  DEFAULT_PROGRAM_ID,
+  getActiveProgram,
+  getActiveCycle,
+  getActiveDay,
+  getDayFromAnyProgram,
+  getExerciseFromAnyProgram,
+  getKeyLifts,
+  computeVolumeFromHistory,
+  normalizeProgramConfig,
+} from './data/programs';
 
 // ============================================================
 // FONTS + BASE STYLES
@@ -21,98 +33,10 @@ const FontStyles = () => (
   `}</style>
 );
 
-// ============================================================
-// EXERCISE LIBRARY
-// ============================================================
-const EXERCISES = {
-  bench_press:        { name: 'Chest Press (Machine)',     sets: 3, repMin: 8,  repMax: 12, incr: 5,   category: 'compound' },
-  incline_db_press:   { name: 'Incline DB Press',          sets: 4, repMin: 8,  repMax: 12, incr: 2.5, category: 'compound' },
-  weighted_dips:      { name: 'Weighted Dips',             sets: 3, repMin: 8,  repMax: 10, incr: 2.5, category: 'compound' },
-  cable_fly_low:      { name: 'Cable Fly (low-to-high)',   sets: 4, repMin: 12, repMax: 15, incr: 2.5, category: 'isolation' },
-  cable_fly_mid:      { name: 'Cable Fly (mid)',           sets: 3, repMin: 12, repMax: 15, incr: 2.5, category: 'isolation' },
-  db_shoulder_press:  { name: 'Seated DB Shoulder Press',  sets: 3, repMin: 8,  repMax: 10, incr: 2.5, category: 'compound' },
-  cable_lateral:      { name: 'Cable Lateral Raise',       sets: 3, repMin: 12, repMax: 15, incr: 2.5, category: 'isolation' },
-  rope_pushdown:      { name: 'Rope Tricep Pushdown',      sets: 3, repMin: 10, repMax: 12, incr: 2.5, category: 'isolation' },
-  oh_cable_tri:       { name: 'Overhead Cable Tri Ext',    sets: 3, repMin: 10, repMax: 12, incr: 2.5, category: 'isolation' },
-
-  deadlift:           { name: 'Deadlift',                  sets: 3, repMin: 5,  repMax: 8,  incr: 10,  category: 'compound' },
-  lat_pulldown:       { name: 'Lat Pulldown',              sets: 4, repMin: 8,  repMax: 12, incr: 5,   category: 'compound' },
-  barbell_row:        { name: 'Barbell Row',               sets: 3, repMin: 8,  repMax: 10, incr: 5,   category: 'compound' },
-  cs_db_row:          { name: 'Chest-Supported DB Row',    sets: 3, repMin: 10, repMax: 12, incr: 2.5, category: 'compound' },
-  face_pull:          { name: 'Face Pulls',                sets: 3, repMin: 12, repMax: 15, incr: 2.5, category: 'isolation' },
-  barbell_curl:       { name: 'Barbell Curl',              sets: 3, repMin: 8,  repMax: 12, incr: 2.5, category: 'isolation' },
-  hammer_curl:        { name: 'DB Hammer Curl',            sets: 3, repMin: 10, repMax: 12, incr: 2.5, category: 'isolation' },
-
-  back_squat:         { name: 'Back Squat',                sets: 4, repMin: 6,  repMax: 8,  incr: 5,   category: 'compound' },
-  rdl:                { name: 'Romanian Deadlift',         sets: 3, repMin: 8,  repMax: 10, incr: 5,   category: 'compound' },
-  leg_press:          { name: 'Leg Press',                 sets: 3, repMin: 10, repMax: 12, incr: 10,  category: 'compound' },
-  lying_leg_curl:     { name: 'Lying Leg Curl',            sets: 3, repMin: 10, repMax: 12, incr: 5,   category: 'isolation' },
-  leg_ext:            { name: 'Leg Extension',             sets: 3, repMin: 10, repMax: 15, incr: 5,   category: 'isolation' },
-  standing_calf:      { name: 'Standing Calf Raise',       sets: 4, repMin: 10, repMax: 15, incr: 5,   category: 'isolation' },
-
-  incline_bb_press:   { name: 'Incline Barbell Press',     sets: 3, repMin: 8,  repMax: 10, incr: 5,   category: 'compound' },
-  weighted_pullup:    { name: 'Pull-ups (weighted)',       sets: 3, repMin: 8,  repMax: 12, incr: 2.5, category: 'compound' },
-  cable_row:          { name: 'Cable Row',                 sets: 3, repMin: 10, repMax: 12, incr: 5,   category: 'compound' },
-  ez_curl:            { name: 'EZ Bar Curl',               sets: 3, repMin: 10, repMax: 12, incr: 2.5, category: 'isolation' },
-  skullcrusher:       { name: 'Skull Crushers',            sets: 3, repMin: 10, repMax: 12, incr: 2.5, category: 'isolation' },
-
-  front_squat:        { name: 'Front Squat',               sets: 3, repMin: 8,  repMax: 10, incr: 5,   category: 'compound' },
-  hip_thrust:         { name: 'Barbell Hip Thrust',        sets: 3, repMin: 8,  repMax: 10, incr: 5,   category: 'compound' },
-  bulgarian:          { name: 'Bulgarian Split Squat',     sets: 3, repMin: 8,  repMax: 10, incr: 2.5, category: 'compound' },
-  seated_leg_curl:    { name: 'Seated Leg Curl',           sets: 3, repMin: 10, repMax: 12, incr: 5,   category: 'isolation' },
-  seated_calf:        { name: 'Seated Calf Raise',         sets: 3, repMin: 10, repMax: 15, incr: 5,   category: 'isolation' },
-  hanging_leg_raise:  { name: 'Hanging Leg Raise',         sets: 3, repMin: 10, repMax: 15, incr: 0,   category: 'isolation' },
-};
-
-const WORKOUT_DAYS = {
-  push:  { label: 'PUSH',  color: '#f5b400', exercises: ['incline_db_press', 'bench_press', 'weighted_dips', 'cable_fly_low', 'db_shoulder_press', 'cable_lateral', 'rope_pushdown'] },
-  pull:  { label: 'PULL',  color: '#3b82f6', exercises: ['deadlift', 'lat_pulldown', 'barbell_row', 'cs_db_row', 'face_pull', 'barbell_curl', 'hammer_curl'] },
-  legs:  { label: 'LEGS',  color: '#ef4444', exercises: ['back_squat', 'rdl', 'leg_press', 'lying_leg_curl', 'leg_ext', 'standing_calf'] },
-  upper: { label: 'UPPER', color: '#a855f7', exercises: ['incline_db_press', 'weighted_pullup', 'cable_fly_mid', 'db_shoulder_press', 'cable_lateral', 'ez_curl'] },
-  lower: { label: 'LOWER', color: '#10b981', exercises: ['front_squat', 'hip_thrust', 'bulgarian', 'seated_leg_curl', 'seated_calf', 'hanging_leg_raise'] },
-};
-
-const DAY_CYCLE = ['push', 'pull', 'legs', 'upper', 'lower'];
-
-// ============================================================
-// MUSCLE MAPPING
-// ============================================================
-const EXERCISE_MUSCLES = {
-  bench_press:        { primary: ['chest'],                    secondary: ['triceps', 'shoulders'] },
-  incline_db_press:   { primary: ['chest'],                    secondary: ['triceps', 'shoulders'] },
-  weighted_dips:      { primary: ['chest'],                    secondary: ['triceps'] },
-  cable_fly_low:      { primary: ['chest'] },
-  cable_fly_mid:      { primary: ['chest'] },
-  db_shoulder_press:  { primary: ['shoulders'],                secondary: ['triceps'] },
-  cable_lateral:      { primary: ['shoulders'] },
-  rope_pushdown:      { primary: ['triceps'] },
-  oh_cable_tri:       { primary: ['triceps'] },
-  skullcrusher:       { primary: ['triceps'] },
-
-  deadlift:           { primary: ['back'],                     secondary: ['hamstrings', 'glutes'] },
-  lat_pulldown:       { primary: ['back'],                     secondary: ['biceps'] },
-  barbell_row:        { primary: ['back'],                     secondary: ['biceps'] },
-  cs_db_row:          { primary: ['back'],                     secondary: ['biceps'] },
-  cable_row:          { primary: ['back'],                     secondary: ['biceps'] },
-  face_pull:          { primary: ['shoulders'] },
-  weighted_pullup:    { primary: ['back'],                     secondary: ['biceps'] },
-  barbell_curl:       { primary: ['biceps'] },
-  hammer_curl:        { primary: ['biceps'] },
-  ez_curl:            { primary: ['biceps'] },
-
-  back_squat:         { primary: ['quads', 'glutes'],          secondary: ['hamstrings'] },
-  front_squat:        { primary: ['quads'],                    secondary: ['glutes'] },
-  rdl:                { primary: ['hamstrings', 'glutes'] },
-  leg_press:          { primary: ['quads'],                    secondary: ['glutes'] },
-  lying_leg_curl:     { primary: ['hamstrings'] },
-  seated_leg_curl:    { primary: ['hamstrings'] },
-  leg_ext:            { primary: ['quads'] },
-  hip_thrust:         { primary: ['glutes'],                   secondary: ['hamstrings'] },
-  bulgarian:          { primary: ['quads', 'glutes'] },
-  standing_calf:      { primary: ['calves'] },
-  seated_calf:        { primary: ['calves'] },
-  hanging_leg_raise:  { primary: ['abs'] },
-};
+// EXERCISES, WORKOUT_DAYS, DAY_CYCLE, EXERCISE_MUSCLES are now defined in
+// src/data/programs.js (the program registry). Reach them via the helpers
+// imported above: getExerciseFromAnyProgram(), getDayFromAnyProgram(),
+// getActiveDay(), getActiveCycle(), etc.
 
 const MUSCLE_TARGETS = {
   chest:      { label: 'Chest',      min: 10, ideal: 18, max: 22, priority: true },
@@ -126,23 +50,6 @@ const MUSCLE_TARGETS = {
   calves:     { label: 'Calves',     min: 6,  ideal: 10, max: 16 },
   abs:        { label: 'Abs',        min: 3,  ideal: 8,  max: 16 },
 };
-
-function computeVolumeByMuscle(history, daysBack = 7) {
-  const cutoff = Date.now() - daysBack * 24 * 60 * 60 * 1000;
-  const vol = {};
-  Object.keys(MUSCLE_TARGETS).forEach(m => { vol[m] = 0; });
-  for (const w of history) {
-    if (new Date(w.date).getTime() < cutoff) continue;
-    for (const ex of w.exercises) {
-      const setsCount = ex.sets.length;
-      const map = EXERCISE_MUSCLES[ex.id];
-      if (!map) continue;
-      (map.primary || []).forEach(m => { if (vol[m] !== undefined) vol[m] += setsCount; });
-      (map.secondary || []).forEach(m => { if (vol[m] !== undefined) vol[m] += setsCount * 0.5; });
-    }
-  }
-  return vol;
-}
 
 // ============================================================
 // COMMON FOODS DATABASE
@@ -357,7 +264,7 @@ async function exportAllData() {
 // PROGRESSION (double progression)
 // ============================================================
 function evaluatePerformance(exerciseId, sets) {
-  const ex = EXERCISES[exerciseId];
+  const ex = getExerciseFromAnyProgram(exerciseId);
   if (!ex || !sets.length) return 'hold';
   const completedAll = sets.every(s => s.reps >= ex.repMin);
   if (!completedAll) return 'miss';
@@ -366,7 +273,7 @@ function evaluatePerformance(exerciseId, sets) {
 }
 
 function nextWeight(exerciseId, currentWeight, perfHistory = []) {
-  const ex = EXERCISES[exerciseId];
+  const ex = getExerciseFromAnyProgram(exerciseId);
   if (!ex || !currentWeight) return currentWeight;
   const last = perfHistory[perfHistory.length - 1];
   if (last === 'progress') return currentWeight + ex.incr;
@@ -514,11 +421,12 @@ export default function ShiftTracker() {
         goal: 'lean',
         restTimer: 90,
         dayIndex: 0,
+        activeProgram: DEFAULT_PROGRAM_ID,
         targets: computeTargets(180, 'lean'),
         createdAt: new Date().toISOString(),
       });
       cfg.goal = normalizeGoal(cfg.goal);
-      setConfig(cfg);
+      setConfig(normalizeProgramConfig(cfg));
 
       setExerciseState(await store.get('exercises_state', {}));
       setHistory(await store.get('workout_history', []));
@@ -616,7 +524,8 @@ export default function ShiftTracker() {
               };
               await saveHistory([record, ...history].slice(0, 60));
 
-              await saveConfig({ ...config, dayIndex: (config.dayIndex + 1) % DAY_CYCLE.length });
+              const cycle = getActiveCycle(config);
+              await saveConfig({ ...config, dayIndex: (config.dayIndex + 1) % cycle.length });
               await saveActiveWorkout(null);
             }}
             onCancel={async () => { await saveActiveWorkout(null); }}
@@ -630,13 +539,18 @@ export default function ShiftTracker() {
                 exerciseState={exerciseState}
                 history={history}
                 onStart={async (dayKey) => {
+                  const day = getDayFromAnyProgram(dayKey);
+                  if (!day) return;
                   const w = {
                     dayKey,
                     startedAt: new Date().toISOString(),
-                    exercises: WORKOUT_DAYS[dayKey].exercises.map(id => ({
-                      id,
-                      sets: Array(EXERCISES[id].sets).fill(null).map(() => ({ weight: null, reps: null, done: false })),
-                    })),
+                    exercises: day.exercises.map(id => {
+                      const meta = getExerciseFromAnyProgram(id);
+                      return {
+                        id,
+                        sets: Array(meta?.sets || 3).fill(null).map(() => ({ weight: null, reps: null, done: false })),
+                      };
+                    }),
                   };
                   await saveActiveWorkout(w);
                 }}
@@ -709,9 +623,12 @@ function TabBtn({ icon, label, active, onClick }) {
 // TRAIN VIEW
 // ============================================================
 function TrainView({ config, exerciseState, history, onStart, onPickDay }) {
-  const currentDayKey = DAY_CYCLE[config.dayIndex % DAY_CYCLE.length];
-  const day = WORKOUT_DAYS[currentDayKey];
+  const cycle = getActiveCycle(config);
+  const program = getActiveProgram(config);
+  const currentDayKey = cycle[config.dayIndex % cycle.length];
+  const day = program.days[currentDayKey];
   const lastWorkout = history[0];
+  const lastWorkoutDay = lastWorkout ? getDayFromAnyProgram(lastWorkout.dayKey) : null;
   const thisWeek = history.filter(h => (Date.now() - new Date(h.date).getTime()) < 7*24*60*60*1000).length;
 
   return (
@@ -722,7 +639,7 @@ function TrainView({ config, exerciseState, history, onStart, onPickDay }) {
           <div className="font-mono text-[10px] text-neutral-400 uppercase tracking-widest mb-1">Next up</div>
           <div className="flex items-baseline gap-3 mb-3">
             <div className="font-display text-6xl leading-none" style={{ color: day.color }}>{day.label}</div>
-            <div className="font-mono text-xs text-neutral-400">DAY {config.dayIndex+1}/5</div>
+            <div className="font-mono text-xs text-neutral-400">DAY {config.dayIndex+1}/{cycle.length}</div>
           </div>
           <div className="text-neutral-300 text-sm mb-4">
             {day.exercises.length} exercises · ~{Math.round(day.exercises.length * 8)} min
@@ -741,7 +658,8 @@ function TrainView({ config, exerciseState, history, onStart, onPickDay }) {
         <div className="font-mono text-[10px] text-neutral-400 uppercase tracking-widest mb-2 px-1">Today's Lifts</div>
         <div className="bg-neutral-900 border border-neutral-700 rounded-xl overflow-hidden">
           {day.exercises.map((exId, idx) => {
-            const ex = EXERCISES[exId];
+            const ex = getExerciseFromAnyProgram(exId);
+            if (!ex) return null;
             const st = exerciseState[exId];
             return (
               <div key={exId} className={`flex items-center justify-between px-4 py-4 ${idx < day.exercises.length - 1 ? 'border-b border-neutral-800' : ''}`}>
@@ -768,8 +686,8 @@ function TrainView({ config, exerciseState, history, onStart, onPickDay }) {
       <div className="mb-4">
         <div className="font-mono text-[10px] text-neutral-400 uppercase tracking-widest mb-2 px-1">Cycle</div>
         <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-5 px-5">
-          {DAY_CYCLE.map((k, idx) => {
-            const d = WORKOUT_DAYS[k];
+          {cycle.map((k, idx) => {
+            const d = program.days[k];
             const active = idx === config.dayIndex;
             return (
               <button
@@ -796,7 +714,7 @@ function TrainView({ config, exerciseState, history, onStart, onPickDay }) {
         <div className="bg-neutral-900 border border-neutral-700 rounded-xl p-4">
           <div className="font-mono text-[10px] text-neutral-400 uppercase tracking-widest mb-1">Last Session</div>
           <div className="font-display text-4xl text-white">
-            {lastWorkout ? WORKOUT_DAYS[lastWorkout.dayKey].label.slice(0,4) : '—'}
+            {lastWorkoutDay ? lastWorkoutDay.label.slice(0,4) : '—'}
           </div>
           <div className="font-mono text-[10px] text-neutral-400">
             {lastWorkout ? new Date(lastWorkout.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'no data'}
@@ -820,9 +738,9 @@ function WorkoutSession({ workout, exerciseState, restTimer, onFinish, onCancel,
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
-  const day = WORKOUT_DAYS[workout.dayKey];
+  const day = getDayFromAnyProgram(workout.dayKey);
   const currentEx = workout.exercises[currentIdx];
-  const currentExMeta = EXERCISES[currentEx.id];
+  const currentExMeta = getExerciseFromAnyProgram(currentEx.id);
   const prevWeight = exerciseState[currentEx.id]?.weight || null;
 
   useEffect(() => {
@@ -2070,7 +1988,7 @@ function MealsView({ templates, saveTemplates, grocery, saveGrocery, customFoods
 }
 
 function StatsView({ config, history, exerciseState }) {
-  const keyLifts = ['bench_press', 'back_squat', 'deadlift', 'db_shoulder_press', 'barbell_row'];
+  const keyLifts = getKeyLifts(config);
 
   const liftData = useMemo(() => {
     const out = {};
@@ -2128,7 +2046,7 @@ function StatsView({ config, history, exerciseState }) {
         ) : (
           <div className="space-y-2">
             {history.slice(0, 10).map((w, i) => {
-              const day = WORKOUT_DAYS[w.dayKey];
+              const day = getDayFromAnyProgram(w.dayKey) || { label: w.dayKey?.toUpperCase() || 'WORKOUT', color: '#a3a3a3' };
               const totalSets = w.exercises.reduce((a, e) => a + e.sets.length, 0);
               return (
                 <div key={i} className="bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-3 flex items-center justify-between">
@@ -2208,7 +2126,13 @@ function NutritionAverages({ targets }) {
 }
 
 function VolumeBreakdown({ history }) {
-  const thisWeek = useMemo(() => computeVolumeByMuscle(history, 7), [history]);
+  const thisWeek = useMemo(() => {
+    const raw = computeVolumeFromHistory(history, 7);
+    // Fill in zero for any tracked muscle that has no volume yet
+    const filled = {};
+    Object.keys(MUSCLE_TARGETS).forEach(m => { filled[m] = raw[m] || 0; });
+    return filled;
+  }, [history]);
   const total = Object.values(thisWeek).reduce((a, b) => a + b, 0);
 
   if (total === 0) {
@@ -2308,7 +2232,8 @@ function StatCard({ label, value, suffix }) {
 }
 
 function LiftChart({ exerciseId, data, current }) {
-  const ex = EXERCISES[exerciseId];
+  const ex = getExerciseFromAnyProgram(exerciseId);
+  if (!ex) return null;
   const max = Math.max(...data.map(d => d.weight));
   const min = Math.min(...data.map(d => d.weight));
   const range = Math.max(1, max - min);
@@ -2372,6 +2297,8 @@ function SettingsModal({ config, onSave, onClose }) {
   const [c, setC] = useState(config.targets.carbs);
   const [f, setF] = useState(config.targets.fat);
   const [rest, setRest] = useState(config.restTimer);
+  const [activeProgram, setActiveProgram] = useState(config.activeProgram || DEFAULT_PROGRAM_ID);
+  const programChanged = activeProgram !== (config.activeProgram || DEFAULT_PROGRAM_ID);
 
   const applyPreset = (nextBw, nextGoal) => {
     const t = computeTargets(nextBw, nextGoal);
@@ -2394,6 +2321,33 @@ function SettingsModal({ config, onSave, onClose }) {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-5">
+          <section>
+            <div className="font-mono text-[10px] text-neutral-400 uppercase tracking-widest mb-2">Program</div>
+            <div className="bg-neutral-900 border border-neutral-700 rounded-xl p-3">
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                {Object.values(PROGRAMS).map(p => {
+                  const active = activeProgram === p.id;
+                  return (
+                    <button key={p.id} onClick={() => setActiveProgram(p.id)}
+                      className={`py-2.5 rounded-lg font-display tracking-wider text-sm transition-all ${
+                        active ? 'bg-amber-400 text-black' : 'bg-neutral-800 text-neutral-300 border border-neutral-700'
+                      }`}>
+                      {p.shortName}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="font-mono text-[10px] text-neutral-400 text-center px-1 leading-relaxed">
+                {PROGRAMS[activeProgram]?.description}
+              </div>
+              {programChanged && (
+                <div className="font-mono text-[10px] text-amber-400 text-center px-1 leading-relaxed mt-2">
+                  Cycle resets to Day 1 on save.
+                </div>
+              )}
+            </div>
+          </section>
+
           <section>
             <div className="font-mono text-[10px] text-neutral-400 uppercase tracking-widest mb-2">Goal</div>
             <div className="bg-neutral-900 border border-neutral-700 rounded-xl p-3">
@@ -2491,6 +2445,8 @@ function SettingsModal({ config, onSave, onClose }) {
               goal,
               restTimer: rest,
               targets: { kcal, protein: p, carbs: c, fat: f },
+              activeProgram,
+              dayIndex: programChanged ? 0 : config.dayIndex,
             })}
             className="w-full py-3 rounded-xl bg-amber-400 text-black font-display text-lg tracking-wider">
             SAVE
